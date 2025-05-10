@@ -29,6 +29,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
         private ReadOnlyCollection<StringTableCollection> _tableCollections;
         private string[] _collectionLabels;
         private long _settingsVersionOnPrevKeySolverRun = -1;
+        private string _snippetToInsert;
         private AutoKeyUiMode _mode;
 
         #region Initialization
@@ -97,6 +98,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                     continue;
                 }
                 
+                DrawToolBar(locale, ref sharedEntry);
                 DrawLocale(locale, ref sharedEntry);
             }
         }
@@ -203,6 +205,31 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             EditorGUILayout.EndHorizontal();
         }
 
+        private void DrawToolBar(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
+            
+            var textControlName = GetTextControlName(locale);
+            var selectedControlName = GUI.GetNameOfFocusedControl();
+            var isTextSelected = selectedControlName == textControlName;
+            
+            GUILayout.BeginHorizontal();
+
+            GUI.enabled = isTextSelected;
+            // Menu-like button
+            if (EditorGUILayout.DropdownButton(new GUIContent("Snippets"), FocusType.Passive, _styles.ButtonStyle)) {
+                var menu = new GenericMenu();
+                foreach (var snippet in LocalizationKeyGeneratorSettings.Instance.Snippets) {
+                    menu.AddItem(new GUIContent(snippet), false, () => _snippetToInsert = snippet);
+                }
+                menu.ShowAsContext();
+            }
+            GUI.enabled = true;
+
+            GUILayout.Button("Spell Check", _styles.ButtonStyle, _styles.FlexibleContentOptions);
+            GUILayout.Button("Translate in other language", _styles.ButtonStyle, _styles.FlexibleContentOptions);
+
+            GUILayout.EndHorizontal();
+        }
+
         private void DrawLocale(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
             var table = _editor.GetLocalizationTable(locale);
             var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
@@ -217,6 +244,23 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             var textControlName = GetTextControlName(locale);
             GUI.SetNextControlName(textControlName);
             var oldText = entry?.Value ?? string.Empty;
+
+            // Insert snippet at cursor position
+            bool hasInsertedSnippet = false;
+            if (!string.IsNullOrEmpty(_snippetToInsert) && GUI.GetNameOfFocusedControl() == textControlName) {
+                var editor = (TextEditor)GUIUtility.GetStateObject(typeof(TextEditor), GUIUtility.keyboardControl);
+                if (editor != null) {
+                    var cursorIndex = editor.cursorIndex;
+                    oldText = oldText.Insert(cursorIndex, _snippetToInsert);                    
+
+                    // Move the cursor to the end of the inserted snippet
+                    //editor.cursorIndex = cursorIndex + _snippetToInsert.Length;
+                    editor.selectIndex = cursorIndex + _snippetToInsert.Length;
+                    _snippetToInsert = null;
+                    hasInsertedSnippet = true;
+                }
+            }
+
             var newText = GUILayout.TextArea(oldText, _styles.TextStyle, _styles.TextOptions);
 
             EndVerticalContentSizeFitter();
@@ -225,7 +269,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             var textRect = GUILayoutUtility.GetLastRect();
             EditorGUI.LabelField(textRect, locale.Code, isTextSelected ? _styles.SelectedLocaleMarkerStyle : _styles.NormalLocaleMarkerStyle);
 
-            if (EditorGUI.EndChangeCheck() == false) {
+            if (EditorGUI.EndChangeCheck() == false && !hasInsertedSnippet) {
                 return;
             }
 

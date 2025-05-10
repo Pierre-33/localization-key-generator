@@ -11,8 +11,10 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
         [SerializeField] private string _defaultKeyStringFormat = "aa_bb";
         [SerializeField] private string _defaultCommentStringFormat = string.Empty;
         [SerializeField] private StringDictionaryContainer _parameters = new StringDictionaryContainer();
+        [SerializeField] private List<string> snippets = new ();
 
         public IReadOnlyList<LocaleIdentifier> PreviewLocales => _previewLocales;
+        public IReadOnlyList<string> Snippets => snippets;
         public string DefaultKeyStringFormat => _defaultKeyStringFormat;
         public string DefaultCommentStringFormat => _defaultCommentStringFormat;
         public IReadOnlyDictionary<string, string> Parameters => _parameters.Dictionary;
