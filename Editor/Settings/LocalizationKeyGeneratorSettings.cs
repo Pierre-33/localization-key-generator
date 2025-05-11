@@ -4,6 +4,8 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Localization;
 using UnityEngine.Localization.Settings;
+using Sirenix.OdinInspector;
+using Dino.LocalizationKeyGenerator.Ollama;
 
 namespace Dino.LocalizationKeyGenerator.Editor.Settings {
     internal class LocalizationKeyGeneratorSettings : ScriptableObject {
@@ -11,13 +13,15 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
         [SerializeField] private string _defaultKeyStringFormat = "aa_bb";
         [SerializeField] private string _defaultCommentStringFormat = string.Empty;
         [SerializeField] private StringDictionaryContainer _parameters = new StringDictionaryContainer();
-        [SerializeField] private List<string> snippets = new ();
+        [SerializeField] private List<string> _snippets = new ();
+        [SerializeField,HideLabel,TitleGroup("Ollama")] private OllamaSettings _ollamaSettings = new OllamaSettings();
 
         public IReadOnlyList<LocaleIdentifier> PreviewLocales => _previewLocales;
-        public IReadOnlyList<string> Snippets => snippets;
+        public IReadOnlyList<string> Snippets => _snippets;
         public string DefaultKeyStringFormat => _defaultKeyStringFormat;
         public string DefaultCommentStringFormat => _defaultCommentStringFormat;
         public IReadOnlyDictionary<string, string> Parameters => _parameters.Dictionary;
+        public OllamaSettings OllamaSettings => _ollamaSettings;
         
         public long Version { get; private set; }
         
