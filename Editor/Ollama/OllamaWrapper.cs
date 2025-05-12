@@ -34,7 +34,7 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
             public bool success = true;
         }
 
-        static List<string> modelList = new();
+        static readonly List<string> modelList = new();
         static float lastModelListUpdateTime = 0f;
 
         public static List<string> GetModelList() {
@@ -117,7 +117,7 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
                             translatedText = translatedText.Substring(2).Trim();
                         }
 
-                        onComplete?.Invoke(new() { result = translatedText}); // Invoke the callback with the translated text
+                        onComplete?.Invoke(new() { result = translatedText});
                     } else {
                         string errorMessage = response.StatusCode.ToString();
                         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -138,8 +138,7 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
                     }
                     
                     onComplete?.Invoke(new() { success = false, result = errorMessage});
-                } 
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     onComplete?.Invoke(new() { success = false, result = ex.Message});
                 } 
             }

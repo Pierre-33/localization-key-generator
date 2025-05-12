@@ -251,43 +251,81 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                 }
             }
 
-            // Backtrack to find the LCS
-            var commonIndicesOld = new List<int>();
-            var commonIndicesNew = new List<int>();
+            // Create arrays to track which characters are part of the common subsequence
+            bool[] inLcsOld = new bool[oldText.Length];
+            bool[] inLcsNew = new bool[newText.Length];
+
+            // Backtrack to find the LCS and mark common characters
+            // We'll backtrack from the end to prefer keeping later characters 
+            // (making the algorithm prefer marking earlier duplicate characters as deleted)
             int x = oldText.Length, y = newText.Length;
+            
+            // Create a copy of the LCS table for reverse traversal
+            int[,] rlcs = new int[oldText.Length + 1, newText.Length + 1];
+            for (int i = 0; i <= oldText.Length; i++) {
+                for (int j = 0; j <= newText.Length; j++) {
+                    rlcs[i, j] = lcs[i, j];
+                }
+            }
+            
+            // First pass - mark the optimal LCS elements from the end
             while (x > 0 && y > 0) {
                 if (oldText[x - 1] == newText[y - 1]) {
-                    commonIndicesOld.Add(x - 1);
-                    commonIndicesNew.Add(y - 1);
+                    inLcsOld[x - 1] = true;
+                    inLcsNew[y - 1] = true;
                     x--;
                     y--;
-                } else if (lcs[x - 1, y] >= lcs[x, y - 1]) {
+                } else if (rlcs[x - 1, y] >= rlcs[x, y - 1]) {
                     x--;
                 } else {
                     y--;
                 }
             }
-            commonIndicesOld.Reverse();
-            commonIndicesNew.Reverse();
-
-            // Highlight differences
-            var result = string.Empty;
-            int oldIndex = 0, newIndex = 0, commonIndex = 0;
-            while (newIndex < newText.Length) {
-                if (commonIndex < commonIndicesNew.Count && newIndex == commonIndicesNew[commonIndex]) {
-                    // Add common character
-                    result += newText[newIndex];
+            
+            // Build the result showing both additions and replacements
+            var result = new System.Text.StringBuilder();
+            int oldIndex = 0, newIndex = 0;
+            
+            // Diff algorithm that shows both additions and replacements
+            while (oldIndex < oldText.Length || newIndex < newText.Length) {
+                // Case 1: Characters match in both strings
+                if (oldIndex < oldText.Length && newIndex < newText.Length && 
+                    inLcsOld[oldIndex] && inLcsNew[newIndex]) {
+                    result.Append(oldText[oldIndex]);
                     oldIndex++;
                     newIndex++;
-                    commonIndex++;
-                } else {
-                    // Add differing character in bold
-                    result += $"<b><color=white>{newText[newIndex]}</b></color>";
+                }
+                // Case 2: Check for character replacement (one character removed and replaced by one or more characters)
+                else if (oldIndex < oldText.Length && !inLcsOld[oldIndex] &&
+                         newIndex < newText.Length && !inLcsNew[newIndex]) {
+                    // This is a replacement - highlight new character(s) without striking out the old
+                    // We'll collect all consecutive replacement characters
+                    int startNewIndex = newIndex;
+                    while (newIndex < newText.Length && !inLcsNew[newIndex]) {
+                        newIndex++;
+                    }
+                    
+                    result.Append($"<b><color=white>{newText.Substring(startNewIndex, newIndex - startNewIndex)}</color></b>");
+                    oldIndex++; // Skip the old character
+                }
+                // Case 3: Character was deleted from old text with no replacement
+                else if (oldIndex < oldText.Length && !inLcsOld[oldIndex]) {
+                    result.Append($"<b><s><color=white>{oldText[oldIndex]}</color></s></b>");
+                    oldIndex++;
+                }
+                // Case 4: Character was added in new text (not replacing anything)
+                else if (newIndex < newText.Length && !inLcsNew[newIndex]) {
+                    result.Append($"<b><color=white>{newText[newIndex]}</color></b>");
                     newIndex++;
+                }
+                // Skip past any other characters
+                else {
+                    if (oldIndex < oldText.Length) oldIndex++;
+                    if (newIndex < newText.Length) newIndex++;
                 }
             }
 
-            return result;
+            return result.ToString();
         }
 
         private void DrawLocale(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
