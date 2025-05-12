@@ -43,5 +43,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
         private void EndBox() {
             SirenixEditorGUI.EndBox();
         }
+
+        public void PopulateGenericMenu(InspectorProperty property, UnityEditor.GenericMenu genericMenu) {}
     }
 }

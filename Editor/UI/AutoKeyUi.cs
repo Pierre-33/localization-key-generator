@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using Dino.LocalizationKeyGenerator.Editor.Settings;
 using Dino.LocalizationKeyGenerator.Editor.Solvers;
 using Dino.LocalizationKeyGenerator.Editor.Utility;
@@ -29,9 +30,27 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
 
         private ReadOnlyCollection<StringTableCollection> _tableCollections;
         private string[] _collectionLabels;
-        private long _settingsVersionOnPrevKeySolverRun = -1;
-        private string _snippetToInsert;
+        private long _settingsVersionOnPrevKeySolverRun = -1;        
         private AutoKeyUiMode _mode;
+        private readonly Dictionary<string, LocaleControlData> _localeControlsData = new ();
+
+        private class LocaleControlData
+        {
+            public LocaleControlData(LocaleIdentifier locale) {
+                this.locale = locale;
+            }
+            public bool HasPendingRequest() => workingText != null;
+            public void ClearRequest() {
+                workingText = null;
+                requestResult = null;
+            }
+            public Rect controlRect;
+            public OllamaWrapper.RequestResult requestResult;
+            public string workingText;
+            public LocaleIdentifier locale;
+            public string snippetToInsert;
+            public int instertIndex = -1;
+        }
 
         #region Initialization
 
@@ -99,7 +118,6 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                     continue;
                 }
                 
-                DrawToolBar(locale, ref sharedEntry);
                 DrawLocale(locale, ref sharedEntry);
             }
         }
@@ -206,130 +224,77 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             EditorGUILayout.EndHorizontal();
         }
 
-        Dictionary<string, OllamaWrapper.RequestResult> pendingTranslations = new ();
-
-        private void DrawToolBar(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
-            
-            var textControlName = GetTextControlName(locale);
-            var selectedControlName = GUI.GetNameOfFocusedControl();
-            var isTextSelected = selectedControlName == textControlName;
-            
-            GUILayout.BeginHorizontal();
-
-            GUI.enabled = isTextSelected;
-            // Menu-like button
-            if (EditorGUILayout.DropdownButton(new GUIContent("Snippets"), FocusType.Passive, _styles.ButtonStyle)) {
-                var menu = new GenericMenu();
-                foreach (var snippet in LocalizationKeyGeneratorSettings.Instance.Snippets) {
-                    menu.AddItem(new GUIContent(snippet), false, () => _snippetToInsert = snippet);
-                }
-                menu.ShowAsContext();
-            }
-            GUI.enabled = true;
-
-            var table = _editor.GetLocalizationTable(locale);
-            var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
-            GUI.enabled = entry != null;
-            GUILayout.Button("Spell Check", _styles.ButtonStyle, _styles.FlexibleContentOptions);
-            if (GUILayout.Button("Translate in other language", _styles.ButtonStyle, _styles.FlexibleContentOptions)) {                
-                if (entry != null) {
-                    foreach (var otherlocale in LocalizationKeyGeneratorSettings.Instance.PreviewLocales) {
-                        if (otherlocale == default || _editor.IsLocalizationTableAvailable(otherlocale) == false) {
-                            continue;
-                        }
-                        if (otherlocale == locale) {
-                            continue;
-                        }
-                        var controlName = GetTextControlName(otherlocale);
-                        pendingTranslations.Add(controlName, null);
-                        OllamaWrapper.RequestTranslation(entry.Value,otherlocale.CultureInfo.DisplayName,(result) => OnTranslationComplete(controlName, result)); 
-                    }
-                }
-            }
-            GUI.enabled = true;
-
-            GUILayout.EndHorizontal();
-        }
-
-        private void OnTranslationComplete(string controlName, OllamaWrapper.RequestResult result) {
-            pendingTranslations[controlName] = result;
-
-            // Repaint all open Inspector windows, this a little overkill but i don't know how to find my window
-            var inspectorWindows = Resources.FindObjectsOfTypeAll<EditorWindow>();                
-            foreach (var window in inspectorWindows) {
-                window.Repaint();
-            }
-        }
-
         private void DrawLocale(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
             var table = _editor.GetLocalizationTable(locale);
             var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
 
+            
             if (table == null) {
                 return;
             }
 
+            var textControlName = GetTextControlName(locale);
+            // Create a new control data if needed
+            if (_localeControlsData.TryGetValue(textControlName, out LocaleControlData controlData) == false)
+            {
+                controlData = new LocaleControlData(locale);
+                _localeControlsData.Add(textControlName, controlData);
+            }
+
             EditorGUI.BeginChangeCheck();
             BeginVerticalContentSizeFitter();
-
-            var textControlName = GetTextControlName(locale);
+            
             GUI.SetNextControlName(textControlName);
 
-            bool canWriteChange = true;
             var oldText = entry?.Value ?? string.Empty;
 
-            if (pendingTranslations.TryGetValue(textControlName, out var pendingTranslation)) {
-                canWriteChange = false;
-                if (pendingTranslation != null) {
-                    oldText = pendingTranslation.result;                    
+            bool forceApplyChange = false;
+            if (controlData.HasPendingRequest()) {
+                if (controlData.requestResult != null) {
+                    oldText = controlData.requestResult.result;                    
                 }
                 else {
-                    oldText = "translating...";
+                    oldText = controlData.workingText;
                 }
+            } else if (controlData.snippetToInsert != null) {
+                //Insert snippet at cursor position
+                oldText = oldText.Insert(controlData.instertIndex, controlData.snippetToInsert);                    
+                forceApplyChange = true;                
             }
+            controlData.snippetToInsert = null;
+            controlData.instertIndex = -1;
 
-            // Insert snippet at cursor position
-            bool hasInsertedSnippet = false;
-            if (!string.IsNullOrEmpty(_snippetToInsert) && GUI.GetNameOfFocusedControl() == textControlName) {
-                var editor = (TextEditor)GUIUtility.GetStateObject(typeof(TextEditor), GUIUtility.keyboardControl);
-                if (editor != null) {
-                    var cursorIndex = editor.cursorIndex;
-                    oldText = oldText.Insert(cursorIndex, _snippetToInsert);                    
+            bool isReadOnly = controlData.HasPendingRequest();
 
-                    // Move the cursor to the end of the inserted snippet
-                    //editor.cursorIndex = cursorIndex + _snippetToInsert.Length;
-                    editor.selectIndex = cursorIndex + _snippetToInsert.Length;
-                    _snippetToInsert = null;
-                    hasInsertedSnippet = true;
-                }
-            }
-
-            GUI.enabled = canWriteChange;
-            var newText = GUILayout.TextArea(oldText, _styles.TextStyle, _styles.TextOptions);
+            GUI.enabled = !isReadOnly;
+            var newText = EditorGUILayout.TextArea(oldText, _styles.TextStyle, _styles.TextOptions);
             GUI.enabled = true;
 
-            if (pendingTranslations.ContainsKey(textControlName)) {
+            if (controlData.HasPendingRequest()) {
                 GUILayout.BeginHorizontal(); 
                 GUILayout.FlexibleSpace();           
                 if (GUILayout.Button("Cancel",GUILayout.Width(75))) {
-                    pendingTranslations.Remove(textControlName);
+                    controlData.ClearRequest();                    
                 }
-                GUI.enabled = pendingTranslation != null && pendingTranslation.success;
+                GUI.enabled = controlData.requestResult != null && controlData.requestResult.success;
                 if (GUILayout.Button("Accept",GUILayout.Width(75))) {
-                    pendingTranslations.Remove(textControlName);                    
-                    canWriteChange = true;
+                    controlData.ClearRequest();                     
+                    forceApplyChange = true;
                 }
                 GUI.enabled = true;
-                GUILayout.EndHorizontal();
+                GUILayout.EndHorizontal();                
             }
 
             EndVerticalContentSizeFitter();
 
             var isTextSelected = GUI.GetNameOfFocusedControl() == textControlName;
             var textRect = GUILayoutUtility.GetLastRect();
+            if (Event.current.type == EventType.Repaint) {
+                controlData.controlRect = textRect;
+            }
             EditorGUI.LabelField(textRect, locale.Code, isTextSelected ? _styles.SelectedLocaleMarkerStyle : _styles.NormalLocaleMarkerStyle);
 
-            if (!canWriteChange || (EditorGUI.EndChangeCheck() == false && !hasInsertedSnippet)) {
+            if ((isReadOnly || EditorGUI.EndChangeCheck() == false) && !forceApplyChange) {
                 return;
             }
 
@@ -358,6 +323,71 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             return $"{TextControlNamePrefix}@{_property.Path}-{locale.Code}";
         }
 
+        #endregion
+
+        #region Context menu
+        private void OnTranslationComplete(string controlName, OllamaWrapper.RequestResult result) {
+            _localeControlsData[controlName].requestResult = result;
+
+            // Repaint all open Inspector windows, this a little overkill but i don't know how to find my window
+            var inspectorWindows = Resources.FindObjectsOfTypeAll<EditorWindow>();                
+            foreach (var window in inspectorWindows) {
+                window.Repaint();
+            }
+        }
+
+        public void PopulateGenericMenu(InspectorProperty property, GenericMenu genericMenu)
+        {
+            var sharedEntry = _editor.GetSharedEntry();
+
+            void TranslateAll(LocaleControlData controlData) {
+                var table = _editor.GetLocalizationTable(controlData.locale);
+                var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
+
+                if (entry != null) {
+                    foreach (var otherlocale in LocalizationKeyGeneratorSettings.Instance.PreviewLocales) {
+                        if (otherlocale == default || _editor.IsLocalizationTableAvailable(otherlocale) == false) {
+                            continue;
+                        }
+                        if (otherlocale == controlData.locale) {
+                            continue;
+                        }
+                        var controlName = GetTextControlName(otherlocale);
+                        _localeControlsData[controlName].workingText = "translating...";
+                        OllamaWrapper.RequestTranslation(entry.Value,controlData.locale.CultureInfo.DisplayName,otherlocale.CultureInfo.DisplayName,(result) => OnTranslationComplete(controlName, result)); 
+                    }
+                }
+            }
+
+            void InsertSnippet(LocaleControlData controlData, string snippet, int insertIndex){
+                controlData.snippetToInsert = snippet;
+                controlData.instertIndex = insertIndex;
+            }
+
+            var mousePosition = Event.current.mousePosition;
+
+            foreach (var kvp in _localeControlsData) {
+                if (kvp.Value.controlRect.Contains(mousePosition)) {
+                    if (!kvp.Value.HasPendingRequest()) {
+                        genericMenu.AddSeparator("");
+                        genericMenu.AddItem(new GUIContent("Translate in other languages"), false, () => TranslateAll(kvp.Value));
+
+                        if (LocalizationKeyGeneratorSettings.Instance.Snippets.Count > 0) {
+                            var editor = typeof(EditorGUI).GetField("activeEditor", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as TextEditor;
+                            if (editor != null && kvp.Value.controlRect.Contains(new Vector2(editor.position.x, editor.position.y))) {
+                                genericMenu.AddSeparator("");
+                            
+                                foreach (var snippet in LocalizationKeyGeneratorSettings.Instance.Snippets) {
+                                    genericMenu.AddItem(new GUIContent($"Paste: {snippet}"), false, () => InsertSnippet(kvp.Value,snippet, editor.cursorIndex));
+                                }
+                            }
+                        }
+                        
+                    }
+                    break;
+                }
+            }
+        }
         #endregion
         
         #region Update

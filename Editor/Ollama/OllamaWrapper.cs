@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using Dino.LocalizationKeyGenerator.Editor.Settings;
 using UnityEngine;
 
@@ -24,11 +25,12 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
             public bool success = true;
         }
         
-        public static  async void RequestTranslation(string text, string targetLanguage, Action<RequestResult> onComplete) {
+        public static  async void RequestTranslation(string text, string sourceLanguage, string targetLanguage, Action<RequestResult> onComplete) {
             using (var client = new System.Net.Http.HttpClient()) {
                 
                 string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.translationPrompt
-                        .Replace("{{language}}", targetLanguage)
+                        .Replace("{{source_language}}", sourceLanguage)
+                        .Replace("{{target_language}}", targetLanguage)
                         .Replace("{{text}}", text);
                 
                 var request = new OllamaRequest {
@@ -65,11 +67,29 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
 
                         onComplete?.Invoke(new() { result = translatedText}); // Invoke the callback with the translated text
                     } else {
-                        onComplete?.Invoke(new() { success = false, result = response.StatusCode.ToString()}); // Invoke the callback with null to indicate failure
+                        string errorMessage = response.StatusCode.ToString();
+                        if (response.StatusCode == HttpStatusCode.NotFound)
+                            errorMessage = $"Model {LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaModel} not found";
+
+                        onComplete?.Invoke(new() { success = false, result = errorMessage});
                     }
-                } catch (Exception ex) {
-                    onComplete?.Invoke(new() { success = false, result = ex.Message}); // Invoke the callback with null to indicate failure
-                }
+                } catch (System.Net.Http.HttpRequestException ex) {
+                    string errorMessage = ex.Message;
+                    if (ex.InnerException is System.Net.Sockets.SocketException socketEx) {                        
+                        switch (socketEx.SocketErrorCode) {
+                            case System.Net.Sockets.SocketError.ConnectionRefused:
+                                errorMessage = $"Connection refused to {LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaServerUrl}";
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    
+                    onComplete?.Invoke(new() { success = false, result = errorMessage});
+                } 
+                catch (Exception ex) {
+                    onComplete?.Invoke(new() { success = false, result = ex.Message});
+                } 
             }
         }
     }

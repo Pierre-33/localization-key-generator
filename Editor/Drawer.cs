@@ -1,12 +1,13 @@
 using Dino.LocalizationKeyGenerator.Editor.UI;
 using Dino.LocalizationKeyGenerator.Editor.Utility;
 using Sirenix.OdinInspector.Editor;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Localization;
 
 namespace Dino.LocalizationKeyGenerator.Editor {
     [DrawerPriority(DrawerPriorityLevel.WrapperPriority)]
-    internal class Drawer : OdinDrawer {
+    internal class Drawer : OdinDrawer,IDefinesGenericMenuItems {
         private ILayout _layout;
 
         protected override void Initialize() {
@@ -37,6 +38,10 @@ namespace Dino.LocalizationKeyGenerator.Editor {
 
         private static AutoCommentAttribute GetAutoCommentAttribute(InspectorProperty property) {
             return property.GetAttribute<AutoCommentAttribute>() ?? property.Parent?.GetAttribute<AutoCommentAttribute>();
+        }
+
+        public void PopulateGenericMenu(InspectorProperty property, GenericMenu genericMenu) {
+            _layout.PopulateGenericMenu(property, genericMenu);
         }
     }
 }

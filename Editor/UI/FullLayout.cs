@@ -2,6 +2,7 @@ using System;
 using Dino.LocalizationKeyGenerator.Editor.Utility;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
+using UnityEditor;
 using UnityEngine;
 
 namespace Dino.LocalizationKeyGenerator.Editor.UI {
@@ -55,6 +56,10 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             }
             EndBox();
             EndFoldout();
+        }
+
+        public void PopulateGenericMenu(InspectorProperty property, GenericMenu genericMenu) {
+            _autoKeyUi.PopulateGenericMenu(property, genericMenu);
         }
 
         private void Update() {
