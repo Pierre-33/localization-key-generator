@@ -42,6 +42,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             
             TextStyle = new GUIStyle(EditorStyles.textArea) {
                 wordWrap = true,
+                richText = true,
                 padding = {
                     right = 20
                 }

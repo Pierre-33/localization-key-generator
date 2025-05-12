@@ -9,12 +9,15 @@ using Dino.LocalizationKeyGenerator.Ollama;
 
 namespace Dino.LocalizationKeyGenerator.Editor.Settings {
     internal class LocalizationKeyGeneratorSettings : ScriptableObject {
-        [SerializeField] private LocaleIdentifier[] _previewLocales = Array.Empty<LocaleIdentifier>();
-        [SerializeField] private string _defaultKeyStringFormat = "aa_bb";
-        [SerializeField] private string _defaultCommentStringFormat = string.Empty;
-        [SerializeField] private StringDictionaryContainer _parameters = new StringDictionaryContainer();
-        [SerializeField] private List<string> _snippets = new ();
-        [SerializeField,HideLabel,TitleGroup("Ollama")] private OllamaSettings _ollamaSettings = new OllamaSettings();
+        const string _tabGroupGeneral = "General";
+        const string _tabGroupOllama = "Ollama";
+        const string _tabGroupSnippets = "Snippets";
+        [SerializeField,TabGroup(_tabGroupGeneral)] private LocaleIdentifier[] _previewLocales = Array.Empty<LocaleIdentifier>();
+        [SerializeField,TabGroup(_tabGroupGeneral)] private string _defaultKeyStringFormat = "aa_bb";
+        [SerializeField,TabGroup(_tabGroupGeneral)] private string _defaultCommentStringFormat = string.Empty;
+        [SerializeField,TabGroup(_tabGroupGeneral)] private StringDictionaryContainer _parameters = new StringDictionaryContainer();
+        [SerializeField,TabGroup(_tabGroupSnippets)] private List<string> _snippets = new ();
+        [SerializeField,HideLabel,TabGroup(_tabGroupOllama)] private OllamaSettings _ollamaSettings = new OllamaSettings();
 
         public IReadOnlyList<LocaleIdentifier> PreviewLocales => _previewLocales;
         public IReadOnlyList<string> Snippets => _snippets;

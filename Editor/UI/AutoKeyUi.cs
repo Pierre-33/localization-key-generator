@@ -36,17 +36,30 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
 
         private class LocaleControlData
         {
+            public enum State
+            {
+                None,
+                Translating,
+                SpellChecking
+            }
             public LocaleControlData(LocaleIdentifier locale) {
                 this.locale = locale;
             }
-            public bool HasPendingRequest() => workingText != null;
+            public bool HasPendingRequest() => state != State.None;
+            public string GetStateString() {
+                return state switch {
+                    State.Translating => "Translating...",
+                    State.SpellChecking => "Spell Checking...",
+                    _ => string.Empty
+                };
+            }
             public void ClearRequest() {
-                workingText = null;
+                state = State.None;
                 requestResult = null;
             }
             public Rect controlRect;
             public OllamaWrapper.RequestResult requestResult;
-            public string workingText;
+            public State state;
             public LocaleIdentifier locale;
             public string snippetToInsert;
             public int instertIndex = -1;
@@ -224,6 +237,59 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             EditorGUILayout.EndHorizontal();
         }
 
+        string HightlightTextDifference(string oldText, string newText) 
+        {
+            // Compute the LCS table
+            int[,] lcs = new int[oldText.Length + 1, newText.Length + 1];
+            for (int i = 1; i <= oldText.Length; i++) {
+                for (int j = 1; j <= newText.Length; j++) {
+                    if (oldText[i - 1] == newText[j - 1]) {
+                        lcs[i, j] = lcs[i - 1, j - 1] + 1;
+                    } else {
+                        lcs[i, j] = Mathf.Max(lcs[i - 1, j], lcs[i, j - 1]);
+                    }
+                }
+            }
+
+            // Backtrack to find the LCS
+            var commonIndicesOld = new List<int>();
+            var commonIndicesNew = new List<int>();
+            int x = oldText.Length, y = newText.Length;
+            while (x > 0 && y > 0) {
+                if (oldText[x - 1] == newText[y - 1]) {
+                    commonIndicesOld.Add(x - 1);
+                    commonIndicesNew.Add(y - 1);
+                    x--;
+                    y--;
+                } else if (lcs[x - 1, y] >= lcs[x, y - 1]) {
+                    x--;
+                } else {
+                    y--;
+                }
+            }
+            commonIndicesOld.Reverse();
+            commonIndicesNew.Reverse();
+
+            // Highlight differences
+            var result = string.Empty;
+            int oldIndex = 0, newIndex = 0, commonIndex = 0;
+            while (newIndex < newText.Length) {
+                if (commonIndex < commonIndicesNew.Count && newIndex == commonIndicesNew[commonIndex]) {
+                    // Add common character
+                    result += newText[newIndex];
+                    oldIndex++;
+                    newIndex++;
+                    commonIndex++;
+                } else {
+                    // Add differing character in bold
+                    result += $"<b><color=white>{newText[newIndex]}</b></color>";
+                    newIndex++;
+                }
+            }
+
+            return result;
+        }
+
         private void DrawLocale(LocaleIdentifier locale, ref SharedTableData.SharedTableEntry sharedEntry) {
             var table = _editor.GetLocalizationTable(locale);
             var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
@@ -251,10 +317,16 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             bool forceApplyChange = false;
             if (controlData.HasPendingRequest()) {
                 if (controlData.requestResult != null) {
-                    oldText = controlData.requestResult.result;                    
+                    if (controlData.requestResult.success && controlData.state == LocaleControlData.State.SpellChecking) {
+                        // Highlight the difference between the old and new text
+                        oldText = HightlightTextDifference(oldText, controlData.requestResult.result);
+                    }   
+                    else {
+                        oldText = controlData.requestResult.result;                        
+                    }                  
                 }
                 else {
-                    oldText = controlData.workingText;
+                    oldText = controlData.GetStateString();
                 }
             } else if (controlData.snippetToInsert != null) {
                 //Insert snippet at cursor position
@@ -278,6 +350,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                 }
                 GUI.enabled = controlData.requestResult != null && controlData.requestResult.success;
                 if (GUILayout.Button("Accept",GUILayout.Width(75))) {
+                    newText = controlData.requestResult.result; // we need to reapply the result to remove potential formating introduced by HightlightTextDifference
                     controlData.ClearRequest();                     
                     forceApplyChange = true;
                 }
@@ -326,7 +399,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
         #endregion
 
         #region Context menu
-        private void OnTranslationComplete(string controlName, OllamaWrapper.RequestResult result) {
+        private void OnOllamaRequestComplete(string controlName, OllamaWrapper.RequestResult result) {
             _localeControlsData[controlName].requestResult = result;
 
             // Repaint all open Inspector windows, this a little overkill but i don't know how to find my window
@@ -353,9 +426,20 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                             continue;
                         }
                         var controlName = GetTextControlName(otherlocale);
-                        _localeControlsData[controlName].workingText = "translating...";
-                        OllamaWrapper.RequestTranslation(entry.Value,controlData.locale.CultureInfo.DisplayName,otherlocale.CultureInfo.DisplayName,(result) => OnTranslationComplete(controlName, result)); 
+                        _localeControlsData[controlName].state = LocaleControlData.State.Translating;
+                        OllamaWrapper.RequestTranslation(entry.Value,controlData.locale.CultureInfo.DisplayName,otherlocale.CultureInfo.DisplayName,(result) => OnOllamaRequestComplete(controlName, result)); 
                     }
+                }
+            }
+
+            void SpellCheck(LocaleControlData controlData) {
+                var table = _editor.GetLocalizationTable(controlData.locale);
+                var entry = sharedEntry != null ? _editor.GetLocalizationTableEntry(table) : null;
+
+                if (entry != null) {
+                    var controlName = GetTextControlName(controlData.locale);
+                    controlData.state = LocaleControlData.State.SpellChecking;
+                    OllamaWrapper.RequestSpellCheck(entry.Value,controlData.locale.CultureInfo.DisplayName,(result) => OnOllamaRequestComplete(controlName, result)); 
                 }
             }
 
@@ -371,8 +455,12 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                     if (!kvp.Value.HasPendingRequest()) {
                         genericMenu.AddSeparator("");
                         genericMenu.AddItem(new GUIContent("Translate in other languages"), false, () => TranslateAll(kvp.Value));
+                        genericMenu.AddItem(new GUIContent("Spell Check"), false, () => SpellCheck(kvp.Value));
 
                         if (LocalizationKeyGeneratorSettings.Instance.Snippets.Count > 0) {
+                            // You can't get the TextEditor from the EditorGUILayout.TextArea with GUIUtility.GetStateObject like you would in GUILayout.TextArea
+                            // So we need to use reflection to get the TextEditor from the EditorGUI
+                            // https://discussions.unity.com/t/custom-editor-want-features-from-guilayout-textarea-and-editorguilayout-textarea/859550
                             var editor = typeof(EditorGUI).GetField("activeEditor", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as TextEditor;
                             if (editor != null && kvp.Value.controlRect.Contains(new Vector2(editor.position.x, editor.position.y))) {
                                 genericMenu.AddSeparator("");

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using Dino.LocalizationKeyGenerator.Editor.Settings;
 using UnityEngine;
@@ -11,7 +12,6 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
             public string model;
             public string prompt;
             public bool stream;
-            public string keep_alive;
         }
 
         [Serializable]
@@ -19,25 +19,77 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
             public string response;
         }
 
+        [Serializable]
+        class OllamaModelList {
+            [Serializable]
+            public class Model {
+                public string name;
+            }
+            public List<Model> models;
+        }
+
         public class RequestResult
         {
             public string result;
             public bool success = true;
         }
-        
-        public static  async void RequestTranslation(string text, string sourceLanguage, string targetLanguage, Action<RequestResult> onComplete) {
+
+        static List<string> modelList = new();
+        static float lastModelListUpdateTime = 0f;
+
+        public static List<string> GetModelList() {
+            if (Time.realtimeSinceStartup - lastModelListUpdateTime > 15f) {
+                UpdateModelList();
+            }
+            return modelList;
+        }
+
+        private static async void UpdateModelList() {
             using (var client = new System.Net.Http.HttpClient()) {
-                
-                string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.translationPrompt
+                try {
+                    var response = await client.GetAsync($"{LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaServerUrl}/api/tags");
+
+                    if (response.IsSuccessStatusCode) {
+                        string result = await response.Content.ReadAsStringAsync();
+                        var ollamaModelList = JsonUtility.FromJson<OllamaModelList>(result);
+                        lastModelListUpdateTime = Time.realtimeSinceStartup;
+                        modelList.Clear();
+                        foreach (var model in ollamaModelList.models) {
+                            if (!modelList.Contains(model.name)) {
+                                modelList.Add(model.name);
+                            }
+                        }
+                    }
+                } catch (Exception) {
+                    modelList.Clear();                   
+                }
+            }
+        }
+            
+        
+        public static void RequestTranslation(string text, string sourceLanguage, string targetLanguage, Action<RequestResult> onComplete) {
+            string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.translationPrompt
                         .Replace("{{source_language}}", sourceLanguage)
                         .Replace("{{target_language}}", targetLanguage)
                         .Replace("{{text}}", text);
-                
+
+            SendOllamaRequest(prompt, onComplete);            
+        }
+
+        public static void RequestSpellCheck(string text, string sourceLanguage, Action<RequestResult> onComplete) {
+            string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.spellCheckPrompt
+                        .Replace("{{source_language}}", sourceLanguage)
+                        .Replace("{{text}}", text);
+                        
+            SendOllamaRequest(prompt, onComplete);            
+        }
+
+        private static  async void SendOllamaRequest(string prompt, Action<RequestResult> onComplete) {
+            using (var client = new System.Net.Http.HttpClient()) {                                
                 var request = new OllamaRequest {
                     model = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaModel,
                     prompt = prompt,
                     stream = false,
-                    keep_alive = "15m"
                 };
 
                 string jsonContent = JsonUtility.ToJson(request);
