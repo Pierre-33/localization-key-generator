@@ -16,15 +16,21 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
         [SerializeField,TabGroup(_tabGroupGeneral)] private string _defaultKeyStringFormat = "aa_bb";
         [SerializeField,TabGroup(_tabGroupGeneral)] private string _defaultCommentStringFormat = string.Empty;
         [SerializeField,TabGroup(_tabGroupGeneral)] private StringDictionaryContainer _parameters = new StringDictionaryContainer();
-        [SerializeField,TabGroup(_tabGroupSnippets)] private List<string> _snippets = new ();
-        [SerializeField,HideLabel,TabGroup(_tabGroupOllama)] private OllamaSettings _ollamaSettings = new OllamaSettings();
+        [SerializeField,TabGroup(_tabGroupSnippets),ListDrawerSettings(ShowFoldout = false)] private List<SnippetsCollection> _snippetsCollection = new ();
+        [SerializeField,HideLabel,TabGroup(_tabGroupOllama)] private OllamaSettings _ollamaSettings = new ();
 
         public IReadOnlyList<LocaleIdentifier> PreviewLocales => _previewLocales;
-        public IReadOnlyList<string> Snippets => _snippets;
         public string DefaultKeyStringFormat => _defaultKeyStringFormat;
         public string DefaultCommentStringFormat => _defaultCommentStringFormat;
         public IReadOnlyDictionary<string, string> Parameters => _parameters.Dictionary;
         public OllamaSettings OllamaSettings => _ollamaSettings;
+        public List<string> GetSnippetsCollection(string collectionName) {
+            var collection = _snippetsCollection.FirstOrDefault(c => c.collectionName == collectionName);
+            if (collection == null) {
+                return null;
+            }
+            return collection.snippets;
+        }
         
         public long Version { get; private set; }
         
@@ -89,6 +95,12 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
                 public string Key => _key;
                 public string Value => _value;
             }
+        }
+
+        [Serializable]
+        public class SnippetsCollection {
+            public string collectionName = string.Empty;
+            [ListDrawerSettings(ShowFoldout = false)] public List<string> snippets = new ();            
         }
     }
 }

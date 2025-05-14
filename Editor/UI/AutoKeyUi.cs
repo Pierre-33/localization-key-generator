@@ -495,16 +495,26 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                         genericMenu.AddItem(new GUIContent("Translate in other languages"), false, () => TranslateAll(kvp.Value));
                         genericMenu.AddItem(new GUIContent("Spell Check"), false, () => SpellCheck(kvp.Value));
 
-                        if (LocalizationKeyGeneratorSettings.Instance.Snippets.Count > 0) {
+                        if (_attribute.SnippetsCollections != null && _attribute.SnippetsCollections.Length > 0) {
                             // You can't get the TextEditor from the EditorGUILayout.TextArea with GUIUtility.GetStateObject like you would in GUILayout.TextArea
                             // So we need to use reflection to get the TextEditor from the EditorGUI
                             // https://discussions.unity.com/t/custom-editor-want-features-from-guilayout-textarea-and-editorguilayout-textarea/859550
                             var editor = typeof(EditorGUI).GetField("activeEditor", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as TextEditor;
                             if (editor != null && kvp.Value.controlRect.Contains(new Vector2(editor.position.x, editor.position.y))) {
-                                genericMenu.AddSeparator("");
-                            
-                                foreach (var snippet in LocalizationKeyGeneratorSettings.Instance.Snippets) {
-                                    genericMenu.AddItem(new GUIContent($"Paste: {snippet}"), false, () => InsertSnippet(kvp.Value,snippet, editor.cursorIndex));
+                                if (_attribute.SnippetsCollections != null) {
+                                    genericMenu.AddSeparator("");
+
+                                    foreach (string snippetCollectionName in _attribute.SnippetsCollections) {
+                                        var collection = LocalizationKeyGeneratorSettings.Instance.GetSnippetsCollection(snippetCollectionName);
+                                        if (collection != null) {
+                                            foreach (var snippet in collection) {
+                                                genericMenu.AddItem(new GUIContent($"Paste: {snippet}"), false, () => InsertSnippet(kvp.Value,snippet, editor.cursorIndex));
+                                            }
+                                        }
+                                        else {
+                                            genericMenu.AddItem(new GUIContent($"Missing Snippets Collection: {snippetCollectionName}"), false, null);
+                                        }
+                                    }
                                 }
                             }
                         }
