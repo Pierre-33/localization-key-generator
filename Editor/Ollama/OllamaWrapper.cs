@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Net;
 using Dino.LocalizationKeyGenerator.Editor.Settings;
 using UnityEngine;
+using UnityEngine.Localization;
+using UnityEngine.SocialPlatforms;
 
 namespace Dino.LocalizationKeyGenerator.Ollama {
     public static class OllamaWrapper
@@ -67,18 +69,22 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
         }
             
         
-        public static void RequestTranslation(string text, string sourceLanguage, string targetLanguage, Action<RequestResult> onComplete) {
+        public static void RequestTranslation(string text, LocaleIdentifier sourceLocale, LocaleIdentifier targetLocale, Action<RequestResult> onComplete) {
+            string keywordsList = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.BuildKeywordsList(sourceLocale, targetLocale);
+
+
             string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.translationPrompt
-                        .Replace("{{source_language}}", sourceLanguage)
-                        .Replace("{{target_language}}", targetLanguage)
+                        .Replace("{{source_language}}", sourceLocale.CultureInfo.DisplayName)
+                        .Replace("{{target_language}}", targetLocale.CultureInfo.DisplayName)
+                        .Replace("{{keywords_list}}", keywordsList)
                         .Replace("{{text}}", text);
 
             SendOllamaRequest(prompt, onComplete);            
         }
 
-        public static void RequestSpellCheck(string text, string sourceLanguage, Action<RequestResult> onComplete) {
+        public static void RequestSpellCheck(string text, LocaleIdentifier sourceLocale, Action<RequestResult> onComplete) {
             string prompt = LocalizationKeyGeneratorSettings.Instance.OllamaSettings.spellCheckPrompt
-                        .Replace("{{source_language}}", sourceLanguage)
+                        .Replace("{{source_language}}", sourceLocale.CultureInfo.DisplayName)
                         .Replace("{{text}}", text);
                         
             SendOllamaRequest(prompt, onComplete);            
@@ -115,6 +121,9 @@ namespace Dino.LocalizationKeyGenerator.Ollama {
                         // Remove "=>" if it starts with it
                         if (translatedText.StartsWith("=>")) {
                             translatedText = translatedText.Substring(2).Trim();
+                        }
+                        if (translatedText.StartsWith(">")) {
+                            translatedText = translatedText.Substring(1).Trim();
                         }
 
                         onComplete?.Invoke(new() { result = translatedText});

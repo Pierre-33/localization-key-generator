@@ -465,7 +465,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                         }
                         var controlName = GetTextControlName(otherlocale);
                         _localeControlsData[controlName].state = LocaleControlData.State.Translating;
-                        OllamaWrapper.RequestTranslation(entry.Value,controlData.locale.CultureInfo.DisplayName,otherlocale.CultureInfo.DisplayName,(result) => OnOllamaRequestComplete(controlName, result)); 
+                        OllamaWrapper.RequestTranslation(entry.Value,controlData.locale,otherlocale,(result) => OnOllamaRequestComplete(controlName, result)); 
                     }
                 }
             }
@@ -477,7 +477,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                 if (entry != null) {
                     var controlName = GetTextControlName(controlData.locale);
                     controlData.state = LocaleControlData.State.SpellChecking;
-                    OllamaWrapper.RequestSpellCheck(entry.Value,controlData.locale.CultureInfo.DisplayName,(result) => OnOllamaRequestComplete(controlName, result)); 
+                    OllamaWrapper.RequestSpellCheck(entry.Value,controlData.locale,(result) => OnOllamaRequestComplete(controlName, result)); 
                 }
             }
 
