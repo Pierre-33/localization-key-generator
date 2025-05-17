@@ -164,6 +164,51 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             EditorGUILayout.EndHorizontal();
         }
 
+        private bool ArePreviewLocalesSmart()
+        {
+            foreach (var locale in LocalizationKeyGeneratorSettings.Instance.PreviewLocales)
+            {
+                var table = _editor.GetLocalizationTable(locale);
+                var entry = _editor.GetSharedEntry() != null ? _editor.GetLocalizationTableEntry(table) : null;
+                if (entry != null)
+                {
+                    if (!entry.IsSmart)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        private bool CheckForBrackets()
+        {
+            foreach (var locale in LocalizationKeyGeneratorSettings.Instance.PreviewLocales)
+            {
+                var table = _editor.GetLocalizationTable(locale);
+                var entry = _editor.GetSharedEntry() != null ? _editor.GetLocalizationTableEntry(table) : null;
+                if (entry?.Value != null)
+                {
+                    if (entry.Value.Contains("{") && entry.Value.Contains("}"))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private void SetPreviewLocalesSmart(bool isSmart)
+        {
+            foreach (var locale in LocalizationKeyGeneratorSettings.Instance.PreviewLocales)
+            {
+                var table = _editor.GetLocalizationTable(locale);
+                var entry = _editor.GetSharedEntry() != null ? _editor.GetLocalizationTableEntry(table) : null;
+                if (entry != null) {
+                    entry.IsSmart = isSmart;
+                }
+                
+            }
+        }
+
         private void DrawKey() {
             var sharedData = _editor.GetSharedData();
 
@@ -203,6 +248,25 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             }
 
             if (hasEntry) {
+                bool isSmart = ArePreviewLocalesSmart();
+                string smartButtonTooltip = "Toggle Smart String for all languages";
+                Color previousColor = GUI.color;
+                if (isSmart) {
+                    GUI.color = Color.lightGray;
+                }
+                else if (CheckForBrackets()) {
+                    GUI.color = Color.red;
+                    smartButtonTooltip = "One of your locale contains brackets, and Smart is not active";
+                }
+                
+                if (GUILayout.Button(new GUIContent("S", smartButtonTooltip), _styles.SquareContentOptions)) {                    
+                    SetPreviewLocalesSmart(!isSmart);
+                    GUIUtility.hotControl = 0;
+                    GUIUtility.keyboardControl = 0;
+                    GUIUtility.ExitGUI();
+                }
+                GUI.color = previousColor;
+
                 if (GUILayout.Button(new GUIContent("❐", "Duplicate table entry"), _styles.SquareContentOptions)) {
                     if (TryCreateUniqueLocalizationKey(sharedData, _attribute.Format, sharedEntry.Key, out var key)) {
                         _editor.CreateSharedEntry(key);
