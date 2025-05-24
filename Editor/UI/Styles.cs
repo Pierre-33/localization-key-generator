@@ -10,6 +10,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
         public GUIStyle LabelStyle { private set; get; }
         public GUIStyle ButtonStyle { private set; get; }
         public GUIStyle TextStyle { private set; get; }
+        public GUIStyle RichTextStyle { private set; get; }
         public GUIStyle NormalLocaleMarkerStyle { private set; get; }
         public GUIStyle SelectedLocaleMarkerStyle { private set; get; }
         public GUILayoutOption[] LabelOptions { private set; get; }
@@ -42,24 +43,34 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             
             TextStyle = new GUIStyle(EditorStyles.textArea) {
                 wordWrap = true,
+                padding = {
+                    right = 20
+                }
+            };
+            
+            RichTextStyle = new GUIStyle(EditorStyles.textArea) {
+                wordWrap = true,
                 richText = true,
                 padding = {
                     right = 20
                 }
             };
 
-            if (NormalLocaleMarkerStyle == null || SelectedLocaleMarkerStyle == null) {
+            if (NormalLocaleMarkerStyle == null || SelectedLocaleMarkerStyle == null)
+            {
                 var clearTexture = new Texture2D(1, 1);
                 clearTexture.SetPixel(0, 0, Color.clear);
                 clearTexture.Apply();
-                NormalLocaleMarkerStyle = new GUIStyle(EditorStyles.miniLabel) {
+                NormalLocaleMarkerStyle = new GUIStyle(EditorStyles.miniLabel)
+                {
                     normal = {
                         background = clearTexture
                     },
                     padding = new RectOffset(0, 7, 2, 0),
                     alignment = TextAnchor.UpperRight
                 };
-                SelectedLocaleMarkerStyle = new GUIStyle(NormalLocaleMarkerStyle) {
+                SelectedLocaleMarkerStyle = new GUIStyle(NormalLocaleMarkerStyle)
+                {
                     normal = {
                         textColor = GUI.skin.settings.selectionColor
                     }

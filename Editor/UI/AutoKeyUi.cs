@@ -30,7 +30,8 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
 
         private ReadOnlyCollection<StringTableCollection> _tableCollections;
         private string[] _collectionLabels;
-        private long _settingsVersionOnPrevKeySolverRun = -1;        
+        private long _settingsVersionOnPrevKeySolverRun = -1;   
+        private bool _displayRichText = false;     
         private AutoKeyUiMode _mode;
         private readonly Dictionary<string, LocaleControlData> _localeControlsData = new ();
 
@@ -248,9 +249,20 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             }
 
             if (hasEntry) {
+
+                var initialColor = GUI.color;
+                if (_displayRichText) {
+                    GUI.color = Color.lightGray;
+                }
+                
+                if (GUILayout.Button(new GUIContent("R", "Display as Rich Text"), _styles.SquareContentOptions)) {                    
+                    _displayRichText = !_displayRichText;
+                }
+                GUI.color = initialColor;
+
                 bool isSmart = ArePreviewLocalesSmart();
                 string smartButtonTooltip = "Toggle Smart String for all languages";
-                Color previousColor = GUI.color;
+                
                 if (isSmart) {
                     GUI.color = Color.lightGray;
                 }
@@ -265,7 +277,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                     GUIUtility.keyboardControl = 0;
                     GUIUtility.ExitGUI();
                 }
-                GUI.color = previousColor;
+                GUI.color = initialColor;
 
                 if (GUILayout.Button(new GUIContent("❐", "Duplicate table entry"), _styles.SquareContentOptions)) {
                     if (TryCreateUniqueLocalizationKey(sharedData, _attribute.Format, sharedEntry.Key, out var key)) {
@@ -417,23 +429,27 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             var oldText = entry?.Value ?? string.Empty;
 
             bool forceApplyChange = false;
+            bool hightlightDifference = false;
             if (controlData.HasPendingRequest()) {
                 if (controlData.requestResult != null) {
-                    if (controlData.requestResult.success && controlData.state == LocaleControlData.State.SpellChecking) {
+                    if (controlData.requestResult.success && controlData.state == LocaleControlData.State.SpellChecking)
+                    {
                         // Highlight the difference between the old and new text
                         oldText = HightlightTextDifference(oldText, controlData.requestResult.result);
-                    }   
-                    else {
-                        oldText = controlData.requestResult.result;                        
-                    }                  
+                        hightlightDifference = true;
+                    }
+                    else
+                    {
+                        oldText = controlData.requestResult.result;
+                    }
                 }
                 else {
                     oldText = controlData.GetStateString();
                 }
             } else if (controlData.snippetToInsert != null) {
                 //Insert snippet at cursor position
-                oldText = oldText.Insert(controlData.instertIndex, controlData.snippetToInsert);                    
-                forceApplyChange = true;                
+                oldText = oldText.Insert(controlData.instertIndex, controlData.snippetToInsert);
+                forceApplyChange = true;
             }
             controlData.snippetToInsert = null;
             controlData.instertIndex = -1;
@@ -441,7 +457,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             bool isReadOnly = controlData.HasPendingRequest();
 
             GUI.enabled = !isReadOnly;
-            var newText = EditorGUILayout.TextArea(oldText, _styles.TextStyle, _styles.TextOptions);
+            var newText = EditorGUILayout.TextArea(oldText, (_displayRichText || hightlightDifference) ? _styles.RichTextStyle : _styles.TextStyle, _styles.TextOptions);
             GUI.enabled = true;
 
             if (controlData.HasPendingRequest()) {
