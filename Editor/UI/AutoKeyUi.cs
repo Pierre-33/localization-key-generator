@@ -49,8 +49,8 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             public bool HasPendingRequest() => state != State.None;
             public string GetStateString() {
                 return state switch {
-                    State.Translating => "Translating...",
-                    State.SpellChecking => "Spell Checking...",
+                    State.Translating => $"Translating with {LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaModel}...",
+                    State.SpellChecking => $"Spell Checking with {LocalizationKeyGeneratorSettings.Instance.OllamaSettings.ollamaModel}...",
                     _ => string.Empty
                 };
             }
