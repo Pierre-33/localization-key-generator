@@ -26,7 +26,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.Processors {
         
         private IDictionary GetFirstParentDictionary(InspectorProperty property) {
             while (property != null) {
-                if (property.ValueEntry.WeakSmartValue is IDictionary dictionary) {
+                if (property.ValueEntry != null && property.ValueEntry.WeakSmartValue is IDictionary dictionary) {
                     return dictionary;
                 }
                 property = property.Parent;
