@@ -24,13 +24,8 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
         public string DefaultCommentStringFormat => _defaultCommentStringFormat;
         public IReadOnlyDictionary<string, string> Parameters => _parameters.Dictionary;
         public OllamaSettings OllamaSettings => _ollamaSettings;
-        public List<string> GetSnippetsCollection(string collectionName) {
-            var collection = _snippetsCollection.FirstOrDefault(c => c.collectionName == collectionName);
-            if (collection == null) {
-                return null;
-            }
-            return collection.snippets;
-        }
+        public SnippetsCollection GetSnippetsCollection(string collectionName) 
+            => _snippetsCollection.FirstOrDefault(c => c.collectionName == collectionName);
         
         public long Version { get; private set; }
         
@@ -98,9 +93,17 @@ namespace Dino.LocalizationKeyGenerator.Editor.Settings {
         }
 
         [Serializable]
+        public class SnippetsEntry
+        {
+            public string snippet = string.Empty;
+            public string displayName = string.Empty;
+        }
+
+        [Serializable]
         public class SnippetsCollection {
             public string collectionName = string.Empty;
-            [ListDrawerSettings(ShowFoldout = false)] public List<string> snippets = new ();            
+            public bool subMenu = false;
+            [ListDrawerSettings(ShowFoldout = false)] public List<SnippetsEntry> snippets = new ();            
         }
     }
 }

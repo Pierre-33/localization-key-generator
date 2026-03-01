@@ -64,6 +64,7 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
             public LocaleIdentifier locale;
             public string snippetToInsert;
             public int instertIndex = -1;
+            public int snippetDeleteCount = 0;
         }
 
         #region Initialization
@@ -447,12 +448,15 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                     oldText = controlData.GetStateString();
                 }
             } else if (controlData.snippetToInsert != null) {
-                //Insert snippet at cursor position
+                //Insert snippet at cursor position, replacing selection if any
+                if (controlData.snippetDeleteCount > 0)
+                    oldText = oldText.Remove(controlData.instertIndex, controlData.snippetDeleteCount);
                 oldText = oldText.Insert(controlData.instertIndex, controlData.snippetToInsert);
                 forceApplyChange = true;
             }
             controlData.snippetToInsert = null;
             controlData.instertIndex = -1;
+            controlData.snippetDeleteCount = 0;
 
             bool isReadOnly = controlData.HasPendingRequest();
 
@@ -561,9 +565,19 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                 }
             }
 
-            void InsertSnippet(LocaleControlData controlData, string snippet, int insertIndex){
-                controlData.snippetToInsert = snippet;
-                controlData.instertIndex = insertIndex;
+            void InsertSnippet(LocaleControlData controlData, string snippet, TextEditor textEditor){
+                string selectedText = textEditor.SelectedText ?? "";
+                int start = Math.Min(textEditor.cursorIndex, textEditor.selectIndex);
+                int end = Math.Max(textEditor.cursorIndex, textEditor.selectIndex);
+                if (snippet.Contains("@")) {
+                    controlData.snippetToInsert = snippet.Replace("@", selectedText);
+                    controlData.instertIndex = start;
+                    controlData.snippetDeleteCount = end - start;
+                } else {
+                    controlData.snippetToInsert = snippet;
+                    controlData.instertIndex = textEditor.cursorIndex;
+                    controlData.snippetDeleteCount = 0;
+                }
             }
 
             var mousePosition = Event.current.mousePosition;
@@ -587,8 +601,10 @@ namespace Dino.LocalizationKeyGenerator.Editor.UI {
                                     foreach (string snippetCollectionName in _attribute.SnippetsCollections) {
                                         var collection = LocalizationKeyGeneratorSettings.Instance.GetSnippetsCollection(snippetCollectionName);
                                         if (collection != null) {
-                                            foreach (var snippet in collection) {
-                                                genericMenu.AddItem(new GUIContent($"Paste: {snippet}"), false, () => InsertSnippet(kvp.Value,snippet, editor.cursorIndex));
+                                            foreach (var snippet in collection.snippets) {
+                                                string displayName = !string.IsNullOrEmpty(snippet.displayName) ? snippet.displayName : snippet.snippet;
+                                                string menuPath = collection.subMenu ? $"{snippetCollectionName}/Paste: {displayName}" : $"Paste: {displayName}";
+                                                genericMenu.AddItem(new GUIContent(menuPath), false, () => InsertSnippet(kvp.Value, snippet.snippet, editor));
                                             }
                                         }
                                         else {
